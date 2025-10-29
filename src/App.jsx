@@ -81,7 +81,7 @@ export default function App() {
             key: def.key,
             displayName: def.displayName,
             color: def.color,
-            hasCollectionTomorrow: false,
+            hasCollectionTodayOrTomorrow: false,
             collectionDay: null,
             nextCollection: null,
           };
@@ -90,7 +90,7 @@ export default function App() {
 
         if (isTestMode) {
           BIN_DEFINITIONS.forEach((def) => {
-            canonicalMap[def.key].hasCollectionTomorrow = true;
+            canonicalMap[def.key].hasCollectionTodayOrTomorrow = true;
             canonicalMap[def.key].collectionDay = "Tomorrow (Test Mode)";
             canonicalMap[def.key].nextCollection = "Tomorrow (Test Mode)";
           });
@@ -101,6 +101,7 @@ export default function App() {
         const containers = Array.from(
           doc.querySelectorAll(".waste-type-container")
         );
+
         containers.forEach((container) => {
           const rawBinType = (
             container.querySelector("h3")?.textContent || ""
@@ -117,7 +118,6 @@ export default function App() {
 
           const key = matchedDef.key;
 
-          // Convert date strings to Date objects
           const dates = dateStrings.map((ds) => new Date(ds));
 
           const todayDate = new Date();
@@ -125,17 +125,22 @@ export default function App() {
           const tomorrow = new Date(todayDate);
           tomorrow.setDate(tomorrow.getDate() + 1);
 
-          // Check if tomorrow is included
+          const hasToday = dates.some(
+            (d) => d.toDateString() === todayDate.toDateString()
+          );
           const hasTomorrow = dates.some(
             (d) => d.toDateString() === tomorrow.toDateString()
           );
-          canonicalMap[key].hasCollectionTomorrow ||= hasTomorrow;
-          if (hasTomorrow)
-            canonicalMap[key].collectionDay = dates.find(
-              (d) => d.toDateString() === tomorrow.toDateString()
-            );
 
-          // Calculate next collection
+          if (hasToday || hasTomorrow) {
+            canonicalMap[key].hasCollectionTodayOrTomorrow = true;
+            canonicalMap[key].collectionDay = dates.find(
+              (d) =>
+                d.toDateString() === todayDate.toDateString() ||
+                d.toDateString() === tomorrow.toDateString()
+            );
+          }
+
           const futureDates = dates
             .filter((d) => d >= todayDate)
             .sort((a, b) => a - b);
@@ -167,7 +172,7 @@ export default function App() {
       (targetDate - todayDate) / (1000 * 60 * 60 * 24)
     );
 
-    if (diffDays === 0) return "Today";
+    if (diffDays === 0) return <b>Today</b>;
     if (diffDays === 1) return "Tomorrow";
     return `${targetDate.toLocaleDateString("en-GB")} (in ${diffDays} days)`;
   };
@@ -206,7 +211,7 @@ export default function App() {
 
       <div style={styles.binList}>
         {bins.map((b) => {
-          const isDue = b.hasCollectionTomorrow;
+          const isDue = b.hasCollectionTodayOrTomorrow;
           const iconColour = isDue ? b.color : "#ccc";
 
           return (
@@ -233,19 +238,6 @@ export default function App() {
           );
         })}
       </div>
-
-      {/* Legend commented out
-      <div style={styles.legend}>
-        <h3 style={{ marginBottom: "0.5rem" }}>Bin Colour Guide:</h3>
-        <ul style={styles.legendList}>
-          {BIN_DEFINITIONS.map(d => (
-            <li key={d.key}>
-              <span style={{ ...styles.legendDot, background: d.color }}></span> {d.displayName}
-            </li>
-          ))}
-        </ul>
-      </div>
-      */}
     </div>
   );
 }
@@ -311,20 +303,4 @@ const styles = {
   binType: { fontSize: "1.1rem", margin: 0 },
   collectionDay: { margin: 0, color: "#555" },
   noCollection: { margin: 0, color: "#888", fontStyle: "italic" },
-  legend: { marginTop: "2rem", textAlign: "center", color: "#444" },
-  legendList: {
-    listStyle: "none",
-    padding: 0,
-    display: "inline-block",
-    textAlign: "left",
-    margin: 0,
-  },
-  legendDot: {
-    display: "inline-block",
-    width: "16px",
-    height: "16px",
-    borderRadius: "50%",
-    marginRight: "0.5rem",
-    verticalAlign: "middle",
-  },
 };
