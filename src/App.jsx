@@ -59,10 +59,10 @@ export default function App() {
     const fetchAndParse = async () => {
       try {
         const res = await fetch(
-          "https://corsproxy.io/?" +
+          "https://api.allorigins.win/get?url=" +
             encodeURIComponent(ADDRESSES[selectedAddress])
         );
-        const html = await res.text();
+        const { contents: html } = await res.json();
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
 
@@ -117,7 +117,6 @@ export default function App() {
           if (!matchedDef) return;
 
           const key = matchedDef.key;
-
           const dates = dateStrings.map((ds) => new Date(ds));
 
           const todayDate = new Date();
@@ -211,19 +210,21 @@ export default function App() {
 
       <div style={styles.binList}>
         {bins.map((b) => {
-          const isDue = b.hasCollectionTodayOrTomorrow;
-          const iconColour = isDue ? b.color : "#ccc";
+          const displayName =
+            b?.displayName || (b?.key ? toTitleCase(b.key) : "Unknown Bin");
+          const isDue = !!b?.hasCollectionTodayOrTomorrow;
+          const iconColour = isDue ? b?.color || "#007bff" : "#ccc";
 
           return (
             <div
-              key={b.key}
-              style={{ ...styles.binCard, opacity: isDue ? 1 : 0.45 }}
+              key={b?.key || Math.random()}
+              style={{ ...styles.binCard, opacity: isDue ? 1 : 0.85 }}
             >
               <div style={styles.iconWrapper}>
-                <FontAwesomeIcon icon={faTrash} size="4x" color={iconColour} />
+                <FontAwesomeIcon icon={faTrash} size="3x" color={iconColour} />
               </div>
-              <div>
-                <h2 style={styles.binType}>{b.displayName}</h2>
+              <div style={styles.textContainer}>
+                <h2 style={styles.binType}>{displayName}</h2>
                 {isDue ? (
                   <p style={styles.collectionDay}>
                     Collection Day: {formatCollectionLabel(b.collectionDay)}
@@ -267,6 +268,7 @@ const styles = {
     justifyContent: "center",
     gap: "1rem",
     marginBottom: "1rem",
+    flexWrap: "wrap",
   },
   addressButton: {
     padding: "0.5rem 1rem",
@@ -293,14 +295,32 @@ const styles = {
     alignItems: "center",
     backgroundColor: "white",
     borderRadius: "12px",
-    padding: "1rem 2rem",
+    padding: "1rem 1rem",
     width: "100%",
     maxWidth: "560px",
     boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
     transition: "all 0.25s ease",
   },
-  iconWrapper: { position: "relative", marginRight: "1rem" },
-  binType: { fontSize: "1.1rem", margin: 0 },
+  iconWrapper: {
+    position: "relative",
+    marginRight: "1rem",
+    minWidth: 54,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textContainer: {
+    flex: 1,
+    minWidth: 0,
+  },
+  binType: {
+    fontSize: "1.1rem",
+    margin: 0,
+    color: "#000",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
   collectionDay: { margin: 0, color: "#555" },
   noCollection: { margin: 0, color: "#888", fontStyle: "italic" },
 };
