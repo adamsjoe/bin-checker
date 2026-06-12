@@ -1,16 +1,18 @@
-# React + Vite
+# Bin Day Checker
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A small React app that shows upcoming bin collection dates for North Lanarkshire addresses. Bins due today or tomorrow are highlighted in their bin colour; the rest are greyed out with their next collection date.
 
-Currently, two official plugins are available:
+It scrapes the council's bin collection pages (via [allorigins.win](https://allorigins.win), since the council site doesn't send CORS headers) and refreshes hourly so it stays correct when left open on a screen.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Running
 
-## React Compiler
+```sh
+npm install
+npm run dev      # local dev server
+npm run build    # production build (output in dist/)
+npm run lint     # eslint
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Test mode
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Append `?test=true` to the URL to force every bin into the "due tomorrow" state, useful for checking the highlighted layout without waiting for a real collection day.

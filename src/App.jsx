@@ -46,6 +46,7 @@ const ADDRESSES = {
 
 export default function App() {
   const [bins, setBins] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [today, setToday] = useState("");
   const [testMode, setTestMode] = useState(false);
@@ -56,26 +57,13 @@ export default function App() {
     const isTestMode = params.get("test") === "true";
     setTestMode(isTestMode);
 
+    let cancelled = false;
+    setLoading(true);
+    setBins([]);
+    setError("");
+
     const fetchAndParse = async () => {
       try {
-        const res = await fetch(
-          "https://api.allorigins.win/get?url=" +
-            encodeURIComponent(ADDRESSES[selectedAddress])
-        );
-        const { contents: html } = await res.json();
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-
-        const now = new Date();
-        setToday(
-          now.toLocaleDateString("en-GB", {
-            weekday: "long",
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })
-        );
-
         const canonicalMap = BIN_DEFINITIONS.reduce((acc, def) => {
           acc[def.key] = {
             key: def.key,
@@ -88,19 +76,47 @@ export default function App() {
           return acc;
         }, {});
 
+        const todayLabel = new Date().toLocaleDateString("en-GB", {
+          weekday: "long",
+          day: "2-digit",
+          month: "long",
+          year: "numeric",
+        });
+
         if (isTestMode) {
           BIN_DEFINITIONS.forEach((def) => {
             canonicalMap[def.key].hasCollectionTodayOrTomorrow = true;
             canonicalMap[def.key].collectionDay = "Tomorrow (Test Mode)";
             canonicalMap[def.key].nextCollection = "Tomorrow (Test Mode)";
           });
+          if (cancelled) return;
+          setToday(todayLabel);
           setBins(BIN_DEFINITIONS.map((d) => canonicalMap[d.key]));
           return;
         }
 
+        const res = await fetch(
+          "https://api.allorigins.win/get?url=" +
+            encodeURIComponent(ADDRESSES[selectedAddress])
+        );
+        if (!res.ok) {
+          throw new Error(`request failed with status ${res.status}`);
+        }
+        const { contents: html } = await res.json();
+        if (!html) {
+          throw new Error("proxy returned no content");
+        }
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+
         const containers = Array.from(
           doc.querySelectorAll(".waste-type-container")
         );
+        if (containers.length === 0) {
+          throw new Error(
+            "no bin data found — the council page layout may have changed"
+          );
+        }
 
         containers.forEach((container) => {
           const rawBinType = (
@@ -117,7 +133,17 @@ export default function App() {
           if (!matchedDef) return;
 
           const key = matchedDef.key;
-          const dates = dateStrings.map((ds) => new Date(ds));
+
+          const dates = dateStrings
+            .map((ds) => new Date(ds))
+            .filter((d) => !Number.isNaN(d.getTime()))
+            .sort((a, b) => a - b);
+          if (dates.length === 0) {
+            console.warn(
+              `No valid collection dates parsed for "${rawBinType}"`
+            );
+            return;
+          }
 
           const todayDate = new Date();
           todayDate.setHours(0, 0, 0, 0);
@@ -140,21 +166,32 @@ export default function App() {
             );
           }
 
-          const futureDates = dates
-            .filter((d) => d >= todayDate)
-            .sort((a, b) => a - b);
+          const futureDates = dates.filter((d) => d >= todayDate);
           if (futureDates.length)
             canonicalMap[key].nextCollection = futureDates[0];
         });
 
+        if (cancelled) return;
+        setToday(todayLabel);
+        setError("");
         setBins(BIN_DEFINITIONS.map((d) => canonicalMap[d.key]));
       } catch (err) {
+        if (cancelled) return;
         console.error(err);
-        setError("Failed to fetch or parse bin data.");
+        setError(`Failed to load bin data: ${err.message}.`);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     };
 
     fetchAndParse();
+    // Refresh hourly so the today/tomorrow highlighting stays correct
+    // when the page is left open past midnight.
+    const refreshInterval = setInterval(fetchAndParse, 60 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(refreshInterval);
+    };
   }, [selectedAddress]);
 
   const formatCollectionLabel = (date) => {
@@ -167,7 +204,9 @@ export default function App() {
     const targetDate = new Date(date);
     targetDate.setHours(0, 0, 0, 0);
 
-    const diffDays = Math.floor(
+    // Round, not floor: across a DST change the gap between midnights
+    // is 23 or 25 hours, which would otherwise be off by a day.
+    const diffDays = Math.round(
       (targetDate - todayDate) / (1000 * 60 * 60 * 24)
     );
 
@@ -207,6 +246,9 @@ export default function App() {
 
       {testMode && <p style={styles.testBadge}>🧪 Test Mode Active</p>}
       {error && <p style={styles.error}>{error}</p>}
+      {loading && !error && (
+        <p style={styles.loading}>Loading bin collections…</p>
+      )}
 
       <div style={styles.binList}>
         {bins.map((b) => {
@@ -284,6 +326,7 @@ const styles = {
     marginBottom: "1.5rem",
   },
   error: { color: "red", textAlign: "center" },
+  loading: { color: "#666", textAlign: "center" },
   binList: {
     display: "flex",
     flexDirection: "column",
